@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "witch-trial-eve",
   "version": "1.0.0",
   "description": "魔法少女的审判前夜 - 桌游改编网页游戏",
@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DZYCD/SortingVoice.git"
+    "url": "git+https://github.com/DZYCD/manosaba_TheNightBeforetheTrial.git"
   },
   "author": "DZYCD",
   "license": "ISC",
