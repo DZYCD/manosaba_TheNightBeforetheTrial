@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔法少女的审判前夜</title>
+    <!-- 引入UI组件库 -->
+    <link rel="stylesheet" href="styles/ui-components.css">
+    <!-- 字体已自托管到 fonts/（Noto Serif SC 子集，四档字重合计约 1.1 MB），
+         不再依赖 Google Fonts：离线打包和国内网络都能正常显示，
+         也省掉了原来 @import 造成的阻塞式请求。 -->
+</head>
+<body>
+    <!-- ========== 网络连接状态 ========== -->
+    <div id="connection-status" class="connection-status"></div>
+
+    <!-- ========== 转场黑幕 ========== -->
+    <div id="screen-transition">
+        <div class="transition-overlay"></div>
+        <div class="loading-content">
+            <div class="loading-text">资源加载中...</div>
+        </div>
+        <div class="loading-tip"></div>
+    </div>
+
+    <!-- ========== 全局音频控制 ========== -->
+    <div id="audio-controls">
+        <button id="mute-btn" class="audio-btn" onclick="toggleMute()" title="静音">🔊</button>
+        <button id="music-info-btn" class="audio-btn" onclick="toggleMusicPanel()" title="音乐信息">🎵</button>
+    </div>
+
+    <!-- ========== 音乐信息面板 ========== -->
+    <div id="music-panel" class="hidden">
+        <div class="music-panel-content">
+            <div class="music-panel-header">
+                <span>🎵 音乐控制</span>
+                <button class="music-panel-close" onclick="toggleMusicPanel()">×</button>
+            </div>
+            <div class="music-now-playing">
+                <span class="music-label">正在播放:</span>
+                <span id="current-track-name">--</span>
+            </div>
+            <div class="volume-control">
+                <span class="volume-label">🎼 背景音乐</span>
+                <input type="range" id="bgm-volume-slider" min="0" max="100" value="50" 
+                       oninput="setBGMVolume(this.value / 100)">
+                <span id="bgm-volume-value">50%</span>
+            </div>
+            <div class="volume-control">
+                <span class="volume-label">🔔 音效</span>
+                <input type="range" id="sfx-volume-slider" min="0" max="100" value="70"
+                       oninput="setSFXVolume(this.value / 100)">
+                <span id="sfx-volume-value">70%</span>
+            </div>
+            <div class="music-buttons">
+                <button class="music-skip-btn" onclick="skipToNextTrack()">⏭ 下一首</button>
+                <button class="music-skip-btn music-stop-voice-btn" id="stop-voice-btn" onclick="stopCharacterVoice()" title="停止正在播放的角色语音">🔇 停止语音</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 主菜单界面（大厅） ========== -->
+    <div id="menu-screen">
+        <!-- 日夜切换按钮 -->
+        <button id="day-night-toggle" class="btn-daynight" onclick="playSubClickSFX(); toggleDayNight()" onmouseenter="playHoverSFX()" title="切换日夜">白昼</button>
+        
+        <!-- 游戏标题 - 图片Logo -->
+        <div class="game-logo">
+            <img src="icon/common/Title.webp" alt="魔法少女的审判前夜" class="game-logo-img">
+            
+            <!-- 玩家名称输入框 -->
+            <div class="player-name-input-wrapper">
+                <img src="icon/common/name text.webp" class="name-input-bg" alt="">
+                <div class="name-input-container">
+                    <button class="name-color-btn" id="name-color-btn" onclick="toggleColorPicker()" title="选择首字颜色">
+                        <span class="color-preview" id="color-preview"></span>
+                    </button>
+                    <input type="text" id="player-name-input" class="player-name-input" 
+                           placeholder="输入你的名字..." 
+                           maxlength="12"
+                           value=""
+                           autocomplete="off"
+                           oninput="updateNamePreview()"
+                           onchange="savePlayerName(this.value)"
+                           onkeydown="if (event.key === 'Enter') { event.preventDefault(); savePlayerName(this.value); this.blur(); }"
+                           onfocus="playHoverSFX()">
+                </div>
+                <!-- 颜色选择面板 -->
+                <div class="name-color-picker hidden" id="name-color-picker">
+                    <div class="color-option" data-color="#4ade80" style="background:#4ade80" onclick="selectNameColor('#4ade80')"></div>
+                    <div class="color-option" data-color="#a855f7" style="background:#a855f7" onclick="selectNameColor('#a855f7')"></div>
+                    <div class="color-option" data-color="#ec4899" style="background:#ec4899" onclick="selectNameColor('#ec4899')"></div>
+                    <div class="color-option" data-color="#f97316" style="background:#f97316" onclick="selectNameColor('#f97316')"></div>
+                    <div class="color-option" data-color="#eab308" style="background:#eab308" onclick="selectNameColor('#eab308')"></div>
+                    <div class="color-option" data-color="#3b82f6" style="background:#3b82f6" onclick="selectNameColor('#3b82f6')"></div>
+                    <div class="color-option" data-color="#ef4444" style="background:#ef4444" onclick="selectNameColor('#ef4444')"></div>
+                    <div class="color-option" data-color="#ffffff" style="background:#ffffff" onclick="selectNameColor('#ffffff')"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 主菜单按钮 - 底部斜放 -->
+        <div class="hub-buttons">
+            <button class="hub-btn" onclick="playMainClickSFX(); selectGameMode('single')" onmouseenter="playHoverSFX()">
+                <span class="decor-left">◆</span>
+                单人游戏
+                <span class="decor-right">◆</span>
+            </button>
+            <button class="hub-btn" onclick="playMainClickSFX(); showScreen('online-screen')" onmouseenter="playHoverSFX()">
+                <span class="decor-left">◆</span>
+                多人游戏
+                <span class="decor-right">◆</span>
+            </button>
+        </div>
+        
+        <!-- 次要按钮 - 右下角 -->
+        <div class="hub-secondary-buttons">
+            <button class="btn-secondary" onclick="playSubClickSFX(); showScreen('settings-screen')" onmouseenter="playHoverSFX()">设置</button>
+            <button class="btn-secondary" onclick="playSubClickSFX(); showScreen('rules-screen')" onmouseenter="playHoverSFX()">规则</button>
+            <button class="btn-secondary" onclick="playSubClickSFX(); showScreen('credits-screen')" onmouseenter="playHoverSFX()">制作人员</button>
+        </div>
+        
+        <!-- 社交链接 - 左下角 -->
+        <div class="hub-social-links">
+            <a href="https://github.com/DZYCD" target="_blank" class="social-btn-mini social-github" onmouseenter="playHoverSFX()" title="GitHub">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            </a>
+            <a href="http://47.100.11.98" target="_blank" class="social-btn-mini social-home" onmouseenter="playHoverSFX()" title="个人主页">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            </a>
+            <a href="https://space.bilibili.com/288927312" target="_blank" class="social-btn-mini social-bilibili" onmouseenter="playHoverSFX()" title="Bilibili">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.659.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/></svg>
+            </a>
+        </div>
+    </div>
+
+    <!-- ========== 多人游戏界面 ========== -->
+    <div id="online-screen" class="hidden screen-bg-multiplayer">
+        <button class="btn-back" onclick="playSubClickSFX(); backToMenuFromOnline()" onmouseenter="playHoverSFX()">← 返回</button>
+        <div class="decorated-title-wrapper">
+            <div class="title-decor-top">
+                <span class="decor-line"></span>
+                <span class="decor-diamond">◇</span>
+                <span class="decor-line"></span>
+            </div>
+            <h2 class="decorated-title">多人游戏</h2>
+            <div class="title-decor-bottom">
+                <span class="decor-scale">⚖</span>
+            </div>
+        </div>
+        <div class="online-container">
+            <div class="online-options">
+                <div class="online-option">
+                    <h3>创建房间</h3>
+                    <p>创建一个新房间，邀请好友加入</p>
+                    <button class="online-btn create-btn" onclick="handleCreateRoom()">
+                        <span>🏠</span> 创建房间
+                    </button>
+                </div>
+                <div class="online-divider">或</div>
+                <div class="online-option">
+                    <h3>加入房间</h3>
+                    <p>输入房间码加入好友的房间</p>
+                    <input type="text" id="room-code-input" class="room-code-input" 
+                           placeholder="输入6位房间码" maxlength="6" 
+                           inputmode="latin" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                           oninput="this.value = this.value.toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g, '').slice(0, 6)"
+                           onkeydown="if (event.key === 'Enter') { event.preventDefault(); handleJoinRoom(); }">
+                    <button class="online-btn join-btn" onclick="handleJoinRoom()">
+                        <span>🚪</span> 加入房间
+                    </button>
+                </div>
+            </div>
+            <div id="connection-status-inline" class="connection-status"></div>
+        </div>
+        <div class="footer-logo">
+            <img src="icon/common/Title.webp" alt="Logo" class="footer-logo-img">
+        </div>
+    </div>
+
+    <!-- ========== 房间等待界面 ========== -->
+    <div id="room-screen" class="hidden screen-bg-multiplayer">
+        <button class="btn-back" onclick="playSubClickSFX(); handleLeaveRoom()" onmouseenter="playHoverSFX()">← 离开房间</button>
+        <div class="decorated-title-wrapper">
+            <div class="title-decor-top">
+                <span class="decor-line"></span>
+                <span class="decor-diamond">◇</span>
+                <span class="decor-line"></span>
+            </div>
+            <h2 class="decorated-title">房间大厅</h2>
+            <div class="title-decor-bottom">
+                <span class="decor-scale">⚖</span>
+            </div>
+        </div>
+        <div class="room-container">
+            <div class="room-code-display">
+                <span class="room-code-label">房间码</span>
+                <span id="display-room-code" class="room-code-value">------</span>
+                <button class="copy-btn" onclick="copyRoomCode()">📋 复制</button>
+            </div>
+            <div class="room-players" id="room-players-list">
+                <!-- 玩家列表由JS动态生成 -->
+            </div>
+            <div class="room-actions">
+                <button id="ready-btn" class="ready-btn" onclick="toggleReady()">准备</button>
+                <button id="start-game-btn" class="start-game-btn hidden" onclick="handleStartOnlineGame()">开始游戏</button>
+            </div>
+        </div>
+        <div class="footer-logo">
+            <img src="icon/common/Title.webp" alt="Logo" class="footer-logo-img">
+        </div>
+    </div>
+
+    <!-- ========== 设置界面 ========== -->
+    <div id="settings-screen" class="hidden screen-bg-setting">
+        <button class="btn-back" onclick="playSubClickSFX(); showScreen('menu-screen')" onmouseenter="playHoverSFX()">← 返回</button>
+        <div class="decorated-title-wrapper">
+            <div class="title-decor-top">
+                <span class="decor-line"></span>
+                <span class="decor-diamond">◇</span>
+                <span class="decor-line"></span>
+            </div>
+            <h2 class="decorated-title">设置</h2>
+            <div class="title-decor-bottom">
+                <span class="decor-scale">⚖</span>
+            </div>
+        </div>
+        <div class="settings-horizontal-container">
+            <div class="gold-card settings-card">
+                <h3 class="gold-card-title">🎵 音频设置</h3>
+                <div class="settings-item">
+                    <span class="settings-label">背景音乐</span>
+                    <div class="settings-slider">
+                        <input type="range" id="settings-bgm-slider" class="slider-gold" min="0" max="100" value="50" 
+                               oninput="setBGMVolume(this.value / 100); updateSettingsSliders();">
+                        <span id="settings-bgm-value">50%</span>
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">音效</span>
+                    <div class="settings-slider">
+                        <input type="range" id="settings-sfx-slider" class="slider-gold" min="0" max="100" value="70"
+                               oninput="setSFXVolume(this.value / 100); updateSettingsSliders();">
+                        <span id="settings-sfx-value">70%</span>
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">静音</span>
+                    <button class="toggle-gold" id="settings-mute-btn" onclick="toggleMute(); updateSettingsSliders();">
+                        🔊 开启
+                    </button>
+                </div>
+            </div>
+            <div class="gold-card settings-card">
+                <h3 class="gold-card-title">🎨 显示设置</h3>
+                <div class="settings-item">
+                    <span class="settings-label">粒子效果</span>
+                    <button class="toggle-gold" id="settings-particles-btn" onclick="toggleParticlesEffect();">
+                        ✨ 开启
+                    </button>
+                </div>
+            </div>
+            <div class="gold-card settings-card">
+                <h3 class="gold-card-title">📦 资源加载</h3>
+                <p class="settings-hint">关闭不需要的资源可加快加载</p>
+                <div class="settings-item">
+                    <span class="settings-label">角色语音</span>
+                    <button class="toggle-gold" id="settings-voice-btn" onclick="toggleVoiceLoading();">
+                        🎤 开启
+                    </button>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">背景音乐</span>
+                    <button class="toggle-gold" id="settings-bgm-load-btn" onclick="toggleBGMLoading();">
+                        🎵 开启
+                    </button>
+                </div>
+                <div class="settings-item">
+                    <span class="settings-label">游戏音效</span>
+                    <button class="toggle-gold" id="settings-sfx-load-btn" onclick="toggleSFXLoading();">
+                        🔔 开启
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="footer-logo">
+            <img src="icon/common/Title.webp" alt="Logo" class="footer-logo-img">
+        </div>
+    </div>
+
+    <!-- ========== 规则界面 ========== -->
+    <div id="rules-screen" class="hidden screen-bg-setting">
+        <button class="btn-back" onclick="playSubClickSFX(); showScreen('menu-screen')" onmouseenter="playHoverSFX()">← 返回</button>
+        <img src="icon/common/Title.webp" alt="Logo" class="screen-logo-topright">
+        <div class="decorated-title-wrapper">
+            <div class="title-decor-top">
+                <span class="decor-line"></span>
+                <span class="decor-diamond">◇</span>
+                <span class="decor-line"></span>
+            </div>
+            <h2 class="decorated-title">游戏规则</h2>
+            <div class="title-decor-bottom">
+                <span class="decor-scale">⚖</span>
+            </div>
+        </div>
+        
+        <!-- 翻书式规则容器 -->
+        <div class="rules-book-container">
+            <button class="rules-nav-btn rules-prev" onclick="playSubClickSFX(); changeRulesPage(-1)" onmouseenter="playHoverSFX()">‹</button>
+            
+            <div class="rules-book">
+                <!-- 第1页：游戏背景 -->
+                <div class="rules-page active" data-page="1">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#d4af37; text-shadow: 0 0 10px #d4af37;">📖 游戏背景</h3>
+                            <div class="rules-page-content">
+                                <p>命案出现后，<span style="color:#a855f7;">预备魔女</span>们前往现场，搜集证据。</p>
+                                <p>在每个人都被怀疑的状况下，预备魔女们开始收集对自己有利的<span style="color:#4ade80; font-size:1.1em;">证据</span>，并努力证明自己的<span style="color:#60a5fa;">清白</span>。</p>
+                            </div>
+                            <div class="rules-page-images single">
+                                <img src="游戏介绍/image.webp" alt="游戏目标">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第2页：游戏目标 -->
+                <div class="rules-page" data-page="2">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#d4af37; text-shadow: 0 0 10px #d4af37;">🎯 游戏目标</h3>
+                            <div class="rules-page-content">
+                                <p>每回合移动并收集证据，将<span style="color:#ef4444; font-size:1.2em; font-weight:bold;">证据</span>、<span style="color:#3b82f6; font-size:1.2em; font-weight:bold;">证词</span>、<span style="color:#ec4899; font-size:1.2em; font-weight:bold;">人心</span>各达到<span style="color:#facc15; font-size:1.4em; text-shadow: 0 0 8px #facc15;">8点</span>，即可宣告<span style="color:#4ade80; font-size:1.3em; text-shadow: 0 0 15px #4ade80;">胜利</span>！</p>
+                            </div>
+                            <div class="rules-page-images single">
+                                <img src="游戏介绍/image.webp" alt="游戏目标">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第3页：移动 -->
+                <div class="rules-page" data-page="3">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#d4af37; text-shadow: 0 0 10px #d4af37;">🚶 移动</h3>
+                            <div class="rules-page-content">
+                                <p>每一个回合，系统会随机出<span style="color:#f97316; font-size:1.1em;">2-4小轮</span>，并发给玩家<span style="color:#60a5fa;">小轮数量+1</span>的手牌。</p>
+                                <p>每一个小轮玩家依次进行：</p>
+                                <p>1. <span style="color:#a855f7;">打出一张手牌</span>，移动相应步数</p>
+                                <p>2. 移动到格子上<span style="color:#4ade80;">触发格子效果</span></p>
+                                <p>回合结束后，<span style="color:#facc15;">重新随机</span>所有格子效果。</p>
+                            </div>
+                            <div class="rules-page-images single">
+                                <img src="游戏介绍/image-1.webp" alt="移动">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第4页：格子 -->
+                <div class="rules-page" data-page="4">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#d4af37; text-shadow: 0 0 10px #d4af37;">📍 格子类型</h3>
+                            <div class="rules-page-content">
+                                <p><span style="color:#4ade80; font-size:1.15em; font-weight:bold;">现场</span>：获得一个证据</p>
+                                <p><span style="color:#60a5fa; font-size:1.15em; font-weight:bold;">地下室</span>：从三个随机证据中选一个，或不选</p>
+                                <p><span style="color:#f472b6; font-size:1.15em; font-weight:bold;">娱乐室</span>：删除至多自己的一个证据</p>
+                                <p style="color:#facc15; margin-top:15px;">⚠️ 本回合被踩过的格子<span style="color:#ef4444;">不可再次触发</span></p>
+                            </div>
+                            <div class="rules-page-images">
+                                <img src="游戏介绍/image-2.webp" alt="格子总览">
+                                <img src="游戏介绍/image-3.webp" alt="现场">
+                                <img src="游戏介绍/image-4.webp" alt="地下室">
+                                <img src="游戏介绍/image-5.webp" alt="娱乐室">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第5页：魔女化 -->
+                <div class="rules-page" data-page="5">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#ef4444; text-shadow: 0 0 15px #ef4444, 0 0 30px #ef4444;">🌙 魔女化</h3>
+                            <div class="rules-page-content">
+                                <p>角色会因为<span style="color:#f97316;">证据的量</span>、<span style="color:#ec4899;">交锋失败</span>和<span style="color:#a855f7;">魔法精神压力</span>增加魔女化。</p>
+                                <p>进度条达到<span style="color:#ef4444; font-size:1.3em; font-weight:bold; text-shadow: 0 0 10px #ef4444;">100%</span>将触发魔女化。</p>
+                                <p>魔女化后，角色将在<span style="color:#ef4444; font-weight:bold;">下一回合结束后被处刑</span>。</p>
+                                <p style="color:#a855f7; font-size:1.1em; text-shadow: 0 0 10px #a855f7;">魔女化会大幅强化角色的魔法！</p>
+                            </div>
+                            <div class="rules-page-images">
+                                <img src="游戏介绍/image-11.webp" alt="魔女化进度">
+                                <img src="游戏介绍/image-12.webp" alt="魔女化触发">
+                                <img src="游戏介绍/image-13.webp" alt="魔女化强化">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第6页：魔女化详解 -->
+                <div class="rules-page" data-page="6">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#ef4444; text-shadow: 0 0 15px #ef4444;">📊 魔女化进度详解</h3>
+                            <div class="rules-page-content" style="font-size:1.05rem;">
+                                <p>1. <span style="color:#a855f7;">施法</span>会受到魔女化惩罚，<span style="color:#facc15;">依据角色而变</span></p>
+                                <p>2. <span style="color:#f97316;">交锋失败</span>会受到<span style="color:#ef4444; font-weight:bold;">5点</span>魔女化惩罚</p>
+                                <p>3. 每一<span style="color:#60a5fa;">回合结算</span>时，将会给角色造成<span style="color:#4ade80;">证物+证词+人心</span>点数之和的魔女化惩罚</p>
+                                <p>4. 每一<span style="color:#60a5fa;">小轮结束</span>后，超出<span style="color:#facc15; font-weight:bold;">8点上限</span>部分的证物、证词、人心将会<span style="color:#ef4444;">额外</span>对角色造成魔女化惩罚</p>
+                            </div>
+                            <div class="rules-page-images">
+                                <img src="游戏介绍/image-12.webp" alt="魔女化详解">
+                                <img src="游戏介绍/image-13.webp" alt="魔女化强化">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第7页：魔法 -->
+                <div class="rules-page" data-page="7">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#a855f7; text-shadow: 0 0 15px #a855f7, 0 0 25px #a855f7;">✨ 魔法</h3>
+                            <div class="rules-page-content">
+                                <p>每个角色都有自己的<span style="color:#a855f7; font-size:1.1em;">魔法</span>。</p>
+                                <p>魔法可以在可发动时发动，但要注意：</p>
+                                <p><span style="color:#ef4444;">魔法发动会增加角色的压力</span>，从而促进魔女化。</p>
+                                <p style="color:#a855f7; font-size:1.15em; text-shadow: 0 0 8px #a855f7;">魔女化后的技能会得到强化！</p>
+                            </div>
+                            <div class="rules-page-images">
+                                <img src="游戏介绍/image-6.webp" alt="魔法界面">
+                                <img src="游戏介绍/image-7.webp" alt="魔法发动">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第8页：交锋 -->
+                <div class="rules-page" data-page="8">
+                    <div class="gold-card rules-card">
+                        <div class="gold-card-content">
+                            <h3 class="rules-page-title" style="color:#f97316; text-shadow: 0 0 15px #f97316, 0 0 25px #f97316;">⚔️ 交锋</h3>
+                            <div class="rules-page-content">
+                                <p>当两名或以上玩家移动时<span style="color:#facc15; font-size:1.1em;">擦肩而过</span>，将触发交锋。</p>
+                                <p>观察屏幕上的<span style="color:#4ade80; font-size:1.1em;">指示灯</span>，灯亮后<span style="color:#60a5fa; font-size:1.15em; font-weight:bold;">点击屏幕</span>！</p>
+                                <p>反应最快的玩家获得<span style="color:#d4af37; font-size:1.2em; text-shadow: 0 0 8px #d4af37;">胜利</span>。</p>
+                                <p>除<span style="color:#d4af37;">第一名</span>外都受到<span style="color:#ef4444;">5点魔女化</span>，然后依次<span style="color:#f97316; font-weight:bold;">抢夺下一名的证物</span>。</p>
+                            </div>
+                            <div class="rules-page-images">
+                                <img src="游戏介绍/image-8.webp" alt="交锋触发">
+                                <img src="游戏介绍/image-9.webp" alt="交锋比拼">
+                                <img src="游戏介绍/image-10.webp" alt="交锋结算">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="rules-nav-btn rules-next" onclick="playSubClickSFX(); changeRulesPage(1)" onmouseenter="playHoverSFX()">›</button>
+        </div>
+        
+        <!-- 页码指示器 -->
+        <div class="rules-page-indicator">
+            <span class="rules-page-dot active" onclick="goToRulesPage(1)"></span>
+            <span class="rules-page-dot" onclick="goToRulesPage(2)"></span>
+            <span class="rules-page-dot" onclick="goToRulesPage(3)"></span>
+            <span class="rules-page-dot" onclick="goToRulesPage(4)"></span>
+            <span class="rules-page-dot" onclick="goToRulesPage(5)"></span>
+            <span class="rules-page-dot" onclick="goToRulesPage(6)"></span>
+            <span class="rules-page-dot" onclick="goToRulesPage(7)"></span>
+            <span class="rules-page-dot" onclick="goToRulesPage(8)"></span>
+        </div>
+    
+    </div>
+
+    <!-- ========== 制作人员界面 ========== -->
+    <div id="credits-screen" class="hidden screen-bg-setting">
+        <button class="btn-back" onclick="playSubClickSFX(); showScreen('menu-screen')" onmouseenter="playHoverSFX()">← 返回</button>
+        <div class="decorated-title-wrapper">
+            <div class="title-decor-top">
+                <span class="decor-line"></span>
+                <span class="decor-diamond">◇</span>
+                <span class="decor-line"></span>
+            </div>
+            <h2 class="decorated-title">制作人员</h2>
+            <div class="title-decor-bottom">
+                <span class="decor-scale">⚖</span>
+            </div>
+        </div>
+        <div class="credits-horizontal-container">
+            <!-- 左侧：制作者信息 - 带流动边框 -->
+            <div class="credits-showcase">
+                <div class="credits-showcase-border"></div>
+                <div class="credits-showcase-content">
+                    <div class="credits-avatars-glow">
+                        <div class="credits-avatar-item-glow">
+                            <img src="icon/DzyCd/DzyCd.webp" alt="单子叶蚕豆" class="credits-avatar-glow">
+                            <div class="avatar-glow-ring"></div>
+                        </div>
+                        <div class="credits-avatar-item-glow">
+                            <img src="icon/DzyCd/SaYi.webp" alt="SaYi机器人" class="credits-avatar-glow">
+                            <div class="avatar-glow-ring"></div>
+                        </div>
+                    </div>
+                    <p class="credits-name-glow">
+                        <span class="glow-green">单</span>子叶蚕豆<span class="glow-and">&</span><span class="glow-purple">S</span>aYi_998
+                    </p>
+                    <p class="credits-subtitle">ISOM_单子叶蚕豆</p>
+                    <div class="social-links">
+                        <a href="https://github.com/DZYCD" target="_blank" class="social-btn social-github" onmouseenter="playHoverSFX()">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                            <span>GitHub</span>
+                        </a>
+                        <a href="http://47.100.11.98" target="_blank" class="social-btn social-home" onmouseenter="playHoverSFX()">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                            <span>主页</span>
+                        </a>
+                        <a href="https://space.bilibili.com/288927312" target="_blank" class="social-btn social-bilibili" onmouseenter="playHoverSFX()">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.659.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/></svg>
+                            <span>Bilibili</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <!-- 中间：素材来源 -->
+            <div class="gold-card credits-card">
+                <h3 class="gold-card-title">🎮 游戏设计 & 编程</h3>
+                <p><span class="highlight-purple">K</span>iro · <span style="color: #4ade80;">单</span>子叶蚕豆</p>
+                <h3 class="gold-card-title" style="margin-top:15px;">🎤 语音素材</h3>
+                <p><span class="highlight-orange">M</span>INIMAX Speech 2.6<br><span class="highlight-purple">魔</span>法少女的魔女审判</p>
+                <h3 class="gold-card-title" style="margin-top:15px;">🎨 美术资源</h3>
+                <p>论破素材：<span class="highlight-pink">b</span>ilibili@夏目安安anan<br>pin标签：<span class="highlight-white">G</span>PT绘制</p>
+            </div>
+            <!-- 右侧：鸣谢 -->
+            <div class="gold-card credits-card">
+                <h3 class="gold-card-title">🎵 音乐素材</h3>
+                <p>免费素材网 & 游戏本体包</p>
+                <h3 class="gold-card-title" style="margin-top:15px;">💝 鸣谢</h3>
+                <p>bilibili @<span class="highlight-pink">双</span>鱼馅豆腐。<br>
+                <span class="highlight-yellow glow">断</span>夏讨论组<br>
+                <span style="font-size: 0.85em; color: #888;">一群980726909<br>二群1033024072</span><br>
+                <span style="font-size: 0.8em; color: #666;">群内制作魔裁全角色Live2D</span></p>
+                <p style="margin-top:10px; font-size:0.85em; color:#888;">感谢Vibe Coding时代<br>和互联网精神</p>
+            </div>
+        </div>
+        <div class="footer-logo">
+            <img src="icon/common/Title.webp" alt="Logo" class="footer-logo-img">
+        </div>
+    </div>
+
+    <!-- ========== 人数选择界面 ========== -->
+    <div id="playercount-screen" class="hidden screen-bg-setting">
+        <button class="btn-back" onclick="playSubClickSFX(); showScreen('menu-screen')" onmouseenter="playHoverSFX()">← 返回</button>
+        <div class="decorated-title-wrapper">
+            <div class="title-decor-top">
+                <span class="decor-line"></span>
+                <span class="decor-diamond">◇</span>
+                <span class="decor-line"></span>
+            </div>
+            <h2 class="decorated-title">选择人数</h2>
+            <div class="title-decor-bottom">
+                <span class="decor-scale">⚖</span>
+            </div>
+        </div>
+        <div class="player-count-container">
+            <div class="btn-circle-group">
+                <button class="btn-circle" data-count="2" onclick="playSelectSFX(); selectPlayerCount(2)" onmouseenter="playHoverSFX()">2</button>
+                <button class="btn-circle selected" data-count="3" onclick="playSelectSFX(); selectPlayerCount(3)" onmouseenter="playHoverSFX()">3</button>
+                <button class="btn-circle" data-count="4" onclick="playSelectSFX(); selectPlayerCount(4)" onmouseenter="playHoverSFX()">4</button>
+            </div>
+            <p class="player-count-hint">选择 2-4 名玩家参与游戏</p>
+            <button class="btn-confirm" onclick="playMainClickSFX(); confirmPlayerCount()" onmouseenter="playHoverSFX()">确认</button>
+        </div>
+    </div>
+
+    <!-- ========== 角色选择界面（新版） ========== -->
+    <div id="character-screen" class="hidden screen-bg-character">
+        <button class="btn-back" onclick="playSubClickSFX(); showScreen('playercount-screen')" onmouseenter="playHoverSFX()">← 返回</button>
+        <div class="char-select-title-wrapper">
+            <div class="title-decor-top">
+                <span class="decor-line"></span>
+                <span class="decor-diamond">◇</span>
+                <span class="decor-line"></span>
+            </div>
+            <h2 id="char-select-title" class="char-select-title">玩家 1 选择角色</h2>
+            <div id="char-select-progress" class="progress-indicator">
+                <!-- 进度指示器由JS动态生成 -->
+            </div>
+        </div>
+        <!-- 角色列表（右侧滑出式卡片，由JS动态生成） -->
+        <div id="character-list" class="char-card-list">
+            <!-- 角色卡片由JS动态生成 -->
+        </div>
+        <!-- 角色详情面板（居中展示） -->
+        <div id="character-detail">
+            <!-- 角色展示面板由JS动态生成 -->
+        </div>
+    </div>
+
+    <!-- ========== 游戏主界面 ========== -->
+    <div id="game-screen" class="hidden">
+        <div class="game-layout">
+            <!-- 导航栏 -->
+            <nav class="game-navbar">
+                <div class="game-navbar-left">
+                    <!-- 小Logo -->
+                    <div class="game-logo-mini">
+                        <img src="icon/common/Title.webp" alt="魔法少女的审判前夜" class="game-logo-mini-img">
+                    </div>
+                    <button class="btn-exit-room" onclick="exitRoom()">退出房间</button>
+                </div>
+                <div class="game-navbar-center">
+                    <span class="game-round-info" id="game-round">第1轮</span>
+                    <span class="game-round-divider">·</span>
+                    <span class="game-round-info" id="game-stage">第1局</span>
+                    <span class="game-round-divider">·</span>
+                    <div class="turn-order-bar" id="turn-order-bar">
+                        <!-- 由JS动态生成 -->
+                    </div>
+                </div>
+                <div class="game-navbar-right">
+                    <span class="game-time" id="game-time">00:00</span>
+                </div>
+            </nav>
+
+            <!-- 游戏主区域（棋盘+四角角色） -->
+            <div class="game-main">
+                <!-- 对手简易信息列表（左侧，由JS生成） -->
+                <div class="opponents-list" id="opponents-list">
+                    <!-- 由JS动态生成 -->
+                </div>
+
+                <!-- 对手详细信息面板（右侧，悬停切换，由JS生成） -->
+                <div class="opponent-detail" id="opponent-detail">
+                    <!-- 由JS动态生成 -->
+                </div>
+
+                <!-- 立绘竖列（独立一列，由JS生成） -->
+                <div class="opponent-portrait-col" id="opponent-portrait-col">
+                    <!-- 由JS动态生成 -->
+                </div>
+
+                <!-- 手机端玩家状态栏（仅手机端显示） -->
+                <div class="mobile-players-bar" id="mobile-players-bar">
+                    <!-- 由JS动态生成 -->
+                </div>
+                
+                <!-- 左上角色 -->
+                <div class="player-slot player-slot-top-left" id="slot-top-left">
+                    <!-- 由JS动态生成 -->
+                </div>
+
+                <!-- 右上角色 -->
+                <div class="player-slot player-slot-top-right" id="slot-top-right">
+                    <!-- 由JS动态生成 -->
+                </div>
+
+                <!-- 棋盘 -->
+                <div class="game-board-wrapper">
+                    <div id="board-container">
+                        <!-- 棋盘由JS动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 左下角色 -->
+                <div class="player-slot player-slot-bottom-left" id="slot-bottom-left">
+                    <!-- 由JS动态生成 -->
+                </div>
+
+                <!-- 右下角色 -->
+                <div class="player-slot player-slot-bottom-right" id="slot-bottom-right">
+                    <!-- 由JS动态生成 -->
+                </div>
+            </div>
+
+            <!-- 用户控制台（可折叠） -->
+            <div class="user-console" id="user-console">
+                <!-- 说明：原来这里有一张可折叠的「自己的角色信息卡」与折叠按钮。
+                     现在自己的信息已在左侧面板 + 右侧详情面板完整呈现，该卡片是重复内容，已移除。
+                     控制台只保留：魔女化进度、手牌、操作按钮。 -->
+                
+                <!-- 离场状态提示（胜利/出局后显示，控制台进入只读态） -->
+                <div class="user-eliminated-hint" id="user-eliminated-hint"></div>
+
+                <div class="user-witch-bar">
+                    <div class="user-witch-fill" id="user-witch-fill" style="width: 0%;"></div>
+                    <span class="user-witch-label" id="user-witch-label">0%</span>
+                </div>
+
+                <!-- 控制台主体 -->
+                <div class="user-console-main">
+                    <!-- 手牌区域 -->
+                    <div class="user-hand-area">
+                        <span class="hand-label">手牌</span>
+                        <div class="user-hand-cards" id="user-hand-cards">
+                            <!-- 手牌由JS动态生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 自己的线索记录灯（居中显示在手牌区与操作按钮之间） -->
+                    <div class="user-clue-lights" id="user-clue-lights">
+                        <!-- 由JS动态生成 -->
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="user-controls" id="user-controls">
+                        <button class="btn-cast-magic" id="btn-cast-magic" onclick="castMagic()">
+                            <span>🌟</span>
+                            <span>发动魔法</span>
+                            <span class="magic-cd-badge" id="magic-cd-badge">就绪</span>
+                        </button>
+                        <!-- 被动开关和里世界按钮由JS根据角色动态添加 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 行动提示栏 -->
+            <div class="action-prompt-bar">
+                <p class="action-prompt-text" id="prompt-text">请选择要打出的点数牌</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 交锋界面（弹窗） ========== -->
+    <div id="confrontation-modal" class="hidden">
+        <div class="modal-overlay">
+            <div class="confrontation-content">
+                <h2>⚔️ 交锋 ⚔️</h2>
+                <div class="vs-display">
+                    <div class="confrontation-player" id="conf-player1"></div>
+                    <span class="vs-text">VS</span>
+                    <div class="confrontation-player" id="conf-player2"></div>
+                </div>
+                <div id="confrontation-light" class="light-off">●</div>
+                <p id="confrontation-hint">等待灯亮后按下按钮！</p>
+                <button id="reaction-btn" class="reaction-button">按下!</button>
+            </div>
+            <!-- 交锋胜利立绘（排名确定时显示） -->
+            <div id="conf-winner-portrait" class="conf-winner-portrait hidden">
+                <img id="conf-winner-img" src="" alt="">
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 交锋动画容器 ========== -->
+    <div id="confrontation-animation" class="confrontation-animation hidden">
+        <!-- 水平分割线 -->
+        <div class="conf-anim-line"></div>
+        <!-- 顶部标题图片 -->
+        <div class="conf-anim-title">
+            <img id="conf-anim-title-img" src="" alt="">
+        </div>
+        <!-- 角色立绘容器 -->
+        <div class="conf-anim-characters" id="conf-anim-characters"></div>
+        <!-- 胜利特效 -->
+        <div class="conf-anim-victory" id="conf-anim-victory">
+            <img id="conf-anim-victory-img" src="" alt="">
+        </div>
+        <!-- 胜利文字 -->
+        <div class="conf-anim-victory-text" id="conf-anim-victory-text"></div>
+    </div>
+
+    <!-- ========== 资源选择弹窗 ========== -->
+    <div id="resource-modal" class="hidden">
+        <div class="modal-overlay">
+            <div class="resource-content">
+                <h3 id="resource-modal-title">选择证据</h3>
+                <div class="resource-options">
+                    <!-- 证据卡选项由JS动态生成 -->
+                </div>
+                <p id="resource-hint"></p>
+                <button class="confirm-btn" onclick="confirmResourceSelect()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 分叉选择弹窗 ========== -->
+    <div id="fork-modal" class="hidden">
+        <div class="modal-overlay">
+            <div class="fork-content">
+                <h3>选择前进方向</h3>
+                <div class="fork-options" id="fork-options">
+                    <!-- 方向选项由JS动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置界面见上方（设置界面的 id 只能出现一次：
+         这里原本还有一套旧版设置界面，取元素时永远只会拿到第一个，
+         旧的那套永远不可见且其中的控件没有任何 JS 引用，已删除） -->
+
+    <!-- ========== 结算界面 ========== -->
+    <div id="result-screen" class="hidden">
+        <div class="result-container">
+            <!-- 背景装饰 -->
+            <div class="result-bg-overlay"></div>
+            
+            <!-- 顶部装饰 -->
+            <div class="result-header">
+                <div class="result-decor-line"></div>
+                <div class="result-title-wrapper">
+                    <span class="result-decor">◆</span>
+                    <h2 id="result-title" class="result-title">审判终结</h2>
+                    <span class="result-decor">◆</span>
+                </div>
+                <div class="result-decor-line"></div>
+            </div>
+            
+            <!-- 游戏统计 -->
+            <div class="result-stats">
+                <div class="result-stat-item">
+                    <span class="stat-label">游戏时长</span>
+                    <span class="stat-value" id="result-duration">00:00</span>
+                </div>
+                <div class="result-stat-item">
+                    <span class="stat-label">总回合数</span>
+                    <span class="stat-value" id="result-rounds">0</span>
+                </div>
+            </div>
+            
+            <!-- 排名列表 -->
+            <div class="result-rankings-wrapper">
+                <div id="result-rankings" class="result-rankings">
+                    <!-- 排名由JS动态生成 -->
+                </div>
+            </div>
+            
+            <!-- 底部按钮 -->
+            <div class="result-actions">
+                <button class="result-btn result-btn-primary" onclick="playMainClickSFX(); handleResultReturn()" onmouseenter="playHoverSFX()">
+                    <span class="btn-decor">⚖</span>
+                    返回大厅
+                    <span class="btn-decor">⚖</span>
+                </button>
+            </div>
+            
+            <!-- 底部装饰 - 使用CSS库的footer-logo -->
+            <div class="footer-logo result-footer-logo">
+                <img src="icon/common/Title.webp" alt="魔法少女的审判前夜" class="footer-logo-img">
+            </div>
+        </div>
+    </div>
+
+    <!-- MQTT库（已本地化到 vendor/，离线打包与国内网络都能用） -->
+    <script src="vendor/mqtt.min.js"></script>
+    <!-- 音频模块 -->
+    <script src="audio.js"></script>
+    <!-- 粒子效果 -->
+    <script src="particles.js"></script>
+    <!-- 网络模块 -->
+    <script src="network.js"></script>
+    <!-- 加载提示配置 -->
+    <script src="loading_tips.js"></script>
+    <!-- 游戏主逻辑 -->
+    <script src="game.js"></script>
+</body>
+</html>
+
+
